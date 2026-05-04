@@ -1,0 +1,37 @@
+# --- Secrets / local config ---
+# Never commit real .env files. .env.example IS committed and shows the schema.
+.env
+*.env
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# --- Local runtime data ---
+# SQLite DB and encrypted blobs are per-deployment runtime state, not source.
+data/pqshare.db
+data/pqshare.db-journal
+data/pqshare.db-wal
+data/pqshare.db-shm
+data/blobs/
+
+# --- Vendored binaries ---
+# cloudflared is downloaded fresh; not source.
+bin/cloudflared
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# --- Logs ---
+*.log

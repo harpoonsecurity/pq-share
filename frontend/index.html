@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pq-share</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "@noble/curves/ed25519": "https://esm.sh/@noble/curves@1.7.0/ed25519",
+          "@noble/post-quantum/ml-kem": "https://esm.sh/@noble/post-quantum@0.4.1/ml-kem",
+          "@noble/post-quantum/ml-dsa": "https://esm.sh/@noble/post-quantum@0.4.1/ml-dsa",
+          "@noble/hashes/hkdf": "https://esm.sh/@noble/hashes@1.6.1/hkdf",
+          "@noble/hashes/sha2": "https://esm.sh/@noble/hashes@1.6.1/sha2",
+          "@noble/hashes/utils": "https://esm.sh/@noble/hashes@1.6.1/utils",
+          "hash-wasm": "https://esm.sh/hash-wasm@4.12.0"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <h1>pq-share</h1>
+      <p class="tagline">post-quantum secure file sharing</p>
+      <nav id="nav">
+        <a href="#/signup">Sign up</a>
+        <a href="#/login">Log in</a>
+      </nav>
+    </header>
+    <main id="app">
+      <section id="view-home" class="view">
+        <p>End-to-end encrypted file sharing using hybrid post-quantum cryptography
+          (X25519 + ML-KEM-768 for key exchange, Ed25519 + ML-DSA-65 for signatures).</p>
+        <p>Files are encrypted in your browser. The server never sees plaintext or your private keys.</p>
+      </section>
+
+      <section id="view-signup" class="view hidden">
+        <h2>Create account</h2>
+        <form id="signup-form">
+          <label>Email
+            <input type="email" name="email" required autocomplete="email" />
+          </label>
+          <label>Password
+            <input type="password" name="password" required minlength="12" autocomplete="new-password" />
+            <small>At least 12 characters. This protects your private keys — we cannot recover it for you.</small>
+          </label>
+          <label>Confirm password
+            <input type="password" name="password2" required minlength="12" autocomplete="new-password" />
+          </label>
+          <button type="submit">Generate keys &amp; sign up</button>
+        </form>
+        <div id="signup-progress" class="progress hidden"></div>
+      </section>
+
+      <section id="view-recovery" class="view hidden">
+        <h2>Save your recovery code</h2>
+        <p class="warn">This is the <em>only</em> way to recover your account if you forget your password.
+          Save it somewhere safe — we cannot show it to you again.</p>
+        <pre id="recovery-code"></pre>
+        <button id="download-recovery">Download as recovery-code.txt</button>
+        <p>We've sent a confirmation link to your email. Click it to activate your account, then log in.</p>
+      </section>
+
+      <section id="view-confirm" class="view hidden">
+        <h2>Confirming email…</h2>
+        <p id="confirm-status"></p>
+      </section>
+
+      <section id="view-login" class="view hidden">
+        <h2>Log in</h2>
+        <form id="login-form">
+          <label>Email
+            <input type="email" name="email" required autocomplete="email" />
+          </label>
+          <label>Password
+            <input type="password" name="password" required autocomplete="current-password" />
+          </label>
+          <button type="submit">Log in</button>
+        </form>
+        <div id="login-progress" class="progress hidden"></div>
+      </section>
+
+      <section id="view-dashboard" class="view hidden">
+        <h2>Welcome, <span id="dash-email"></span></h2>
+        <p>Your private keys have been unlocked in this tab.</p>
+        <nav class="dash-nav">
+          <a href="#/send">Send a file</a>
+          <a href="#/inbox">Inbox</a>
+          <a href="#/sent">Sent</a>
+        </nav>
+        <details>
+          <summary>Your public-key fingerprints</summary>
+          <table id="dash-fingerprints">
+            <tbody></tbody>
+          </table>
+        </details>
+        <button id="logout-btn">Log out</button>
+      </section>
+
+      <section id="view-send" class="view hidden">
+        <h2>Send a file</h2>
+        <form id="send-form">
+          <label>File
+            <input type="file" name="file" required />
+          </label>
+          <label>Recipient emails (comma or whitespace separated)
+            <textarea name="recipients" rows="2" required placeholder="alice@example.com, bob@example.com"></textarea>
+          </label>
+          <button type="submit">Encrypt &amp; send</button>
+          <a href="#/" class="cancel">Cancel</a>
+        </form>
+        <div id="send-progress" class="progress hidden"></div>
+      </section>
+
+      <section id="view-inbox" class="view hidden">
+        <h2>Inbox</h2>
+        <p><a href="#/">Back to dashboard</a></p>
+        <table id="inbox-table">
+          <thead><tr><th>From</th><th>File</th><th>Size</th><th>Received</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="inbox-empty" class="muted hidden">No files in your inbox yet.</p>
+      </section>
+
+      <section id="view-sent" class="view hidden">
+        <h2>Sent</h2>
+        <p><a href="#/">Back to dashboard</a></p>
+        <table id="sent-table">
+          <thead><tr><th>Sent</th><th>Size</th><th>Recipients</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p id="sent-empty" class="muted hidden">You haven't sent anything yet.</p>
+      </section>
+
+      <section id="view-unlock" class="view hidden">
+        <h2>Unlock</h2>
+        <p>You're signed in but your private keys are not loaded in this tab.
+          Enter your password to unwrap them.</p>
+        <form id="unlock-form">
+          <label>Password
+            <input type="password" name="password" required autocomplete="current-password" />
+          </label>
+          <button type="submit">Unlock</button>
+          <button type="button" id="unlock-cancel">Sign out instead</button>
+        </form>
+        <div id="unlock-progress" class="progress hidden"></div>
+      </section>
+    </main>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>
