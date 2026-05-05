@@ -8,10 +8,14 @@ on:
 
 permissions:
   contents: read
-  # security-events: write and actions: read would be needed for SARIF
-  # upload to the GitHub Security tab. That requires GitHub Advanced
-  # Security on private repos — we don't have it. We use upload:never
-  # below and ship SARIF as a workflow artifact instead.
+  # actions: read is needed by codeql-action for status/telemetry API
+  # calls even when upload:never (without it, analyze step fails with
+  # "Resource not accessible by integration").
+  actions: read
+  # security-events: write would be needed for SARIF upload to the
+  # GitHub Security tab. That requires GitHub Advanced Security on
+  # private repos — we don't have it. Using upload:never below and
+  # shipping SARIF as a workflow artifact instead.
 
 jobs:
   analyze:
