@@ -20,4 +20,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Semgrep
-        run: semgrep ci --config=auto
+        run: semgrep ci --config=auto --json-output=semgrep-results.json
+
+      - name: Upload Semgrep JSON results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-results
+          path: semgrep-results.json
+          retention-days: 90
+          if-no-files-found: error
