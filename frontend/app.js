@@ -128,7 +128,7 @@ async function maybeUpgradeKeyset(priv, wrapKey, wrappedRecoveryKeyB64, progress
     ecdsa_p384:  b64url(ext.ecdsa_p384.pub),
     ml_kem_1024: b64url(ext.ml_kem_1024.pub),
     ml_dsa_87:   b64url(ext.ml_dsa_87.pub),
-    wrapped_priv_password: b64url(wrappedPwd),
+    wrapped_priv_blob: b64url(wrappedPwd),
   };
   // If the server has a wrapped_recovery_key for this user, we can unwrap
   // recoveryKey using wrapKey, then re-wrap the v2 bundle under recoveryKey.
@@ -273,7 +273,7 @@ document.getElementById("signup-form").addEventListener("submit", async (event) 
         ml_kem_1024: b64url(keys.pq_l5.ml_kem_1024.pub),
         ml_dsa_87:   b64url(keys.pq_l5.ml_dsa_87.pub),
       },
-      wrapped_priv_password: b64url(wrappedPwd),
+      wrapped_priv_blob: b64url(wrappedPwd),
       wrapped_priv_recovery: b64url(wrappedRec),
       wrapped_recovery_key:  b64url(wrappedRecKey),
     });
@@ -348,7 +348,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
     done();
 
     done = p.step("Unwrapping private keys…");
-    const wrappedBlob = b64urlDecode(resp.wrapped_priv_password);
+    const wrappedBlob = b64urlDecode(resp.wrapped_priv_blob);
     let bundle;
     try {
       bundle = await aesGcmOpen(wrapKey, wrappedBlob);
@@ -359,7 +359,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
     done();
 
     let publicKeys = decodePublicKeys(resp.public_keys);
-    let wrappedB64 = resp.wrapped_priv_password;
+    let wrappedB64 = resp.wrapped_priv_blob;
     const wrappedRecoveryKeyB64 = resp.wrapped_recovery_key || null;
 
     const upgrade = await maybeUpgradeKeyset(priv, wrapKey, wrappedRecoveryKeyB64, p);

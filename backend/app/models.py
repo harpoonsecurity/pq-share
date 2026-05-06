@@ -35,7 +35,11 @@ class User(Base):
     recovery_salt: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     kdf_params: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    wrapped_priv_password: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    # The encrypted private-key bundle. Named "blob" not "password" because
+    # this column holds AEAD ciphertext, not the password itself — a CodeQL
+    # heuristic flagged the older name `wrapped_priv_password` as a clear-text
+    # password storage smell despite the value being already-encrypted.
+    wrapped_priv_blob: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     wrapped_priv_recovery: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     # AES-GCM(wrapKey, recoveryKey). Lets the client re-wrap the recovery
     # bundle on subsequent logins without ever asking for the recovery code

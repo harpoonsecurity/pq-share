@@ -32,8 +32,26 @@ async def _apply_column_additions(conn) -> None:
             await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
 
 
+# (table, old_column, new_column) — applied if old exists and new does not.
+# SQLite 3.25+ supports RENAME COLUMN; we're on 3.45 in production.
+_PENDING_RENAMES: list[tuple[str, str, str]] = [
+    ("users", "wrapped_priv_password", "wrapped_priv_blob"),
+]
+
+
+async def _apply_column_renames(conn) -> None:
+    for table, old, new in _PENDING_RENAMES:
+        rows = await conn.execute(text(f"PRAGMA table_info({table})"))
+        cols = {row[1] for row in rows.fetchall()}
+        if old in cols and new not in cols:
+            await conn.execute(text(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}"))
+
+
 async def init_db() -> None:
     async with engine.begin() as conn:
+        # Renames first so create_all doesn't try to add a "new" column
+        # that's about to be created by renaming the old one.
+        await _apply_column_renames(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _apply_column_additions(conn)
 

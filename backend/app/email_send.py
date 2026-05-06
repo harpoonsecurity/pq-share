@@ -1,4 +1,5 @@
 import logging
+import re
 import smtplib
 from email.message import EmailMessage
 from email.utils import formataddr
@@ -7,6 +8,17 @@ from .config import settings
 
 
 log = logging.getLogger(__name__)
+
+
+# CR / LF / NUL / other C0 control characters get replaced before any
+# user-controlled value reaches a log sink. This prevents log-forging where
+# an attacker injects a newline followed by a fake log entry.
+_CONTROL_CHARS = re.compile(r"[\r\n\t\x00-\x1f\x7f]")
+
+
+def _safe(value: str) -> str:
+    """Strip control characters so user-supplied values can be logged inline."""
+    return _CONTROL_CHARS.sub("?", value) if isinstance(value, str) else value
 
 
 def send_email(to: str, subject: str, body: str) -> None:
@@ -29,4 +41,4 @@ def send_email(to: str, subject: str, body: str) -> None:
         if settings.smtp_user and settings.smtp_password:
             smtp.login(settings.smtp_user, settings.smtp_password)
         smtp.send_message(msg)
-    log.info("sent email to=%s subject=%r via %s", to, subject, settings.smtp_host)
+    log.info("sent email to=%r subject=%r via %s", _safe(to), _safe(subject), settings.smtp_host)

@@ -78,7 +78,7 @@ class SignupRequest(BaseModel):
     kdf_params: KdfParams
     auth_secret: str
     public_keys: PublicKeys
-    wrapped_priv_password: str
+    wrapped_priv_blob: str
     wrapped_priv_recovery: str
     # Optional for back-compat with very old clients; new clients always send it
     # so subsequent bundle upgrades can re-wrap the recovery bundle automatically.
@@ -148,7 +148,7 @@ async def signup(
     pub_ecdsap384  = _decode_b64(body.public_keys.ecdsa_p384,  field="public_keys.ecdsa_p384",  expected_len=_PUBKEY_LENS["ecdsa_p384"])
     pub_mlkem1024  = _decode_b64(body.public_keys.ml_kem_1024, field="public_keys.ml_kem_1024", expected_len=_PUBKEY_LENS["ml_kem_1024"])
     pub_mldsa87    = _decode_b64(body.public_keys.ml_dsa_87,   field="public_keys.ml_dsa_87",   expected_len=_PUBKEY_LENS["ml_dsa_87"])
-    wrapped_pwd = _decode_b64(body.wrapped_priv_password, field="wrapped_priv_password")
+    wrapped_blob = _decode_b64(body.wrapped_priv_blob, field="wrapped_priv_blob")
     wrapped_rec = _decode_b64(body.wrapped_priv_recovery, field="wrapped_priv_recovery")
     wrapped_rec_key = (
         _decode_b64(body.wrapped_recovery_key, field="wrapped_recovery_key")
@@ -170,7 +170,7 @@ async def signup(
         kdf_salt=kdf_salt,
         recovery_salt=recovery_salt,
         kdf_params=json.dumps(body.kdf_params.model_dump()),
-        wrapped_priv_password=wrapped_pwd,
+        wrapped_priv_blob=wrapped_blob,
         wrapped_priv_recovery=wrapped_rec,
         wrapped_recovery_key=wrapped_rec_key,
     )
@@ -258,7 +258,7 @@ class LoginResponse(BaseModel):
     user_id: int
     email: str
     public_keys: PublicKeys
-    wrapped_priv_password: str
+    wrapped_priv_blob: str
     wrapped_recovery_key: str | None = None
 
 
@@ -296,7 +296,7 @@ async def login(
         user_id=user.id,
         email=user.email,
         public_keys=_public_keys_for(user),
-        wrapped_priv_password=b64url(user.wrapped_priv_password),
+        wrapped_priv_blob=b64url(user.wrapped_priv_blob),
         wrapped_recovery_key=b64url(user.wrapped_recovery_key) if user.wrapped_recovery_key else None,
     )
 
@@ -342,7 +342,7 @@ class UpgradeKeysRequest(BaseModel):
     ecdsa_p384:  str
     ml_kem_1024: str
     ml_dsa_87:   str
-    wrapped_priv_password: str
+    wrapped_priv_blob: str
     # If the client has access to the recoveryKey (via the stored
     # wrapped_recovery_key, unwrappable with wrapKey), it should re-wrap the
     # v2 bundle under recoveryKey and send it here. Pre-wrapped_recovery_key
@@ -370,7 +370,7 @@ async def upgrade_keys(
     user.pub_ecdsap384 = _decode_b64(body.ecdsa_p384,  field="ecdsa_p384",  expected_len=_PUBKEY_LENS["ecdsa_p384"])
     user.pub_mlkem1024 = _decode_b64(body.ml_kem_1024, field="ml_kem_1024", expected_len=_PUBKEY_LENS["ml_kem_1024"])
     user.pub_mldsa87   = _decode_b64(body.ml_dsa_87,   field="ml_dsa_87",   expected_len=_PUBKEY_LENS["ml_dsa_87"])
-    user.wrapped_priv_password = _decode_b64(body.wrapped_priv_password, field="wrapped_priv_password")
+    user.wrapped_priv_blob = _decode_b64(body.wrapped_priv_blob, field="wrapped_priv_blob")
     if body.wrapped_priv_recovery is not None:
         user.wrapped_priv_recovery = _decode_b64(body.wrapped_priv_recovery, field="wrapped_priv_recovery")
     if body.wrapped_recovery_key is not None:
