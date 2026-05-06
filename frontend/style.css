@@ -17,7 +17,7 @@ nav a {
 nav a:hover { text-decoration: underline; }
 
 main { margin-top: 2rem; max-width: 720px; }
-.view.hidden { display: none; }
+.hidden { display: none !important; }
 
 h2 { margin-top: 0; }
 

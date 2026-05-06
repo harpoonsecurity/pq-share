@@ -123,7 +123,8 @@
             </label>
             <div class="button-row">
               <button type="submit">Re-enable recovery</button>
-              <button type="button" id="recovery-rewrap-dismiss" class="secondary">Dismiss</button>
+              <button type="button" id="recovery-rewrap-dismiss" class="secondary"
+                      onclick="sessionStorage.setItem('pqshare:recoveryRewrapDismissed','1');document.getElementById('dash-recovery-banner').classList.add('hidden');return false;">Dismiss</button>
             </div>
           </form>
           <div id="recovery-rewrap-progress" class="progress hidden"></div>
@@ -226,6 +227,6 @@
         <div id="unlock-progress" class="progress hidden"></div>
       </section>
     </main>
-    <script type="module" src="/static/app.js"></script>
+    <script type="module" src="/static/app.js?v=20260506-3"></script>
   </body>
 </html>

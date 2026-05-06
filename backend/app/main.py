@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -28,6 +28,14 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.middleware("http")
+async def no_cache_static(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+    return response
+
+
 app.mount(
     "/static",
     StaticFiles(directory=settings.frontend_dir),
@@ -35,11 +43,14 @@ app.mount(
 )
 
 
+_NO_CACHE = {"Cache-Control": "no-store, must-revalidate"}
+
+
 @app.get("/")
 async def index() -> FileResponse:
-    return FileResponse(settings.frontend_dir / "index.html")
+    return FileResponse(settings.frontend_dir / "index.html", headers=_NO_CACHE)
 
 
 @app.get("/confirm")
 async def confirm_page() -> FileResponse:
-    return FileResponse(settings.frontend_dir / "index.html")
+    return FileResponse(settings.frontend_dir / "index.html", headers=_NO_CACHE)

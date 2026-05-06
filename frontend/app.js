@@ -395,8 +395,9 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
 
 document.getElementById("unlock-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const password = event.currentTarget.password.value;
-  const submitBtn = event.currentTarget.querySelector("button[type=submit]");
+  const form = event.currentTarget;
+  const password = form.password.value;
+  const submitBtn = form.querySelector("button[type=submit]");
   submitBtn.disabled = true;
   const p = makeProgress("unlock-progress");
 
@@ -436,7 +437,7 @@ document.getElementById("unlock-form").addEventListener("submit", async (event) 
     appState.wrapKey = wrapKey;
 
     p.reset();
-    event.currentTarget.reset();
+    form.reset();
     renderDashboard();
   } catch (err) {
     p.error(`Unlock failed: ${err.message}`);
@@ -488,27 +489,42 @@ document.getElementById("logout-btn").addEventListener("click", () => doLogout()
 
 async function maybeShowRecoveryRewrapBanner() {
   const banner = document.getElementById("dash-recovery-banner");
-  // Show only when: account is upgraded (has v2 keys) AND no wrapped_recovery_key exists.
   const upgraded = !!appState.publicKeys?.secp384r1;
-  const haveWrappedRecKey = !!sessionStorage.getItem(SS.WRAPPED_RECOVERY_KEY);
-  if (!upgraded || haveWrappedRecKey || sessionStorage.getItem("pqshare:recoveryRewrapDismissed") === "1") {
+  if (!upgraded || sessionStorage.getItem("pqshare:recoveryRewrapDismissed") === "1") {
+    banner.classList.add("hidden");
+    return;
+  }
+  // Server is authoritative — sessionStorage may be stale from a prior
+  // session that pre-dates the wrapped_recovery_key field.
+  let haveWrappedRecKey = !!sessionStorage.getItem(SS.WRAPPED_RECOVERY_KEY);
+  let me = null;
+  try {
+    me = await getJson("/api/auth/me");
+    if (me.wrapped_recovery_key) {
+      sessionStorage.setItem(SS.WRAPPED_RECOVERY_KEY, me.wrapped_recovery_key);
+      haveWrappedRecKey = true;
+    } else {
+      sessionStorage.removeItem(SS.WRAPPED_RECOVERY_KEY);
+      haveWrappedRecKey = false;
+    }
+    appState.meExtras = { recovery_salt: me.recovery_salt, kdf_params: me.kdf_params };
+  } catch (_) { /* network blip — fall through with whatever we have */ }
+
+  if (haveWrappedRecKey) {
     banner.classList.add("hidden");
     return;
   }
   banner.classList.remove("hidden");
-
-  // Lazy-fetch recovery_salt + kdf_params if we don't have them.
-  if (!appState.meExtras || !appState.meExtras.recovery_salt) {
-    try {
-      const me = await getJson("/api/auth/me");
-      appState.meExtras = { recovery_salt: me.recovery_salt, kdf_params: me.kdf_params };
-    } catch (_) { /* ignore — submit will retry */ }
-  }
 }
 
-document.getElementById("recovery-rewrap-dismiss").addEventListener("click", () => {
+// Delegated so the click is captured even if the button is re-rendered or
+// the per-element listener didn't attach for some reason.
+document.addEventListener("click", (event) => {
+  const btn = event.target.closest?.("#recovery-rewrap-dismiss");
+  if (!btn) return;
+  event.preventDefault();
   sessionStorage.setItem("pqshare:recoveryRewrapDismissed", "1");
-  document.getElementById("dash-recovery-banner").classList.add("hidden");
+  document.getElementById("dash-recovery-banner")?.classList.add("hidden");
 });
 
 document.getElementById("recovery-rewrap-form").addEventListener("submit", async (event) => {
