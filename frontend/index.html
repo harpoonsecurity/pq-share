@@ -4,15 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>pq-share</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/static/style.css" />
     <script type="importmap">
       {
         "imports": {
           "@noble/curves/ed25519": "https://esm.sh/@noble/curves@1.7.0/ed25519",
+          "@noble/curves/p384": "https://esm.sh/@noble/curves@1.7.0/p384",
           "@noble/post-quantum/ml-kem": "https://esm.sh/@noble/post-quantum@0.4.1/ml-kem",
           "@noble/post-quantum/ml-dsa": "https://esm.sh/@noble/post-quantum@0.4.1/ml-dsa",
           "@noble/hashes/hkdf": "https://esm.sh/@noble/hashes@1.6.1/hkdf",
           "@noble/hashes/sha2": "https://esm.sh/@noble/hashes@1.6.1/sha2",
+          "@noble/hashes/sha3": "https://esm.sh/@noble/hashes@1.6.1/sha3",
           "@noble/hashes/utils": "https://esm.sh/@noble/hashes@1.6.1/utils",
           "hash-wasm": "https://esm.sh/hash-wasm@4.12.0"
         }
@@ -30,9 +35,21 @@
     </header>
     <main id="app">
       <section id="view-home" class="view">
-        <p>End-to-end encrypted file sharing using hybrid post-quantum cryptography
-          (X25519 + ML-KEM-768 for key exchange, Ed25519 + ML-DSA-65 for signatures).</p>
-        <p>Files are encrypted in your browser. The server never sees plaintext or your private keys.</p>
+        <p>End-to-end encrypted file sharing with a user-selectable cipher suite per send.
+          You pick where on the spectrum you want to be — classical, hybrid post-quantum,
+          pure post-quantum, or CNSA 2.0 — and the app dispatches accordingly.</p>
+        <p>Available envelope primitives:</p>
+        <ul>
+          <li><strong>Key exchange:</strong> X25519, secp384r1, X25519+ML-KEM-768 (hybrid), ML-KEM-768, ML-KEM-1024</li>
+          <li><strong>Signatures:</strong> Ed25519, ECDSA-P384, Ed25519+ML-DSA-65 (dual hybrid), ML-DSA-65, ML-DSA-87</li>
+          <li><strong>Hash &amp; HKDF:</strong> SHA-256, SHA-384, SHA-512, SHA3-512</li>
+          <li><strong>Symmetric:</strong> AES-128-GCM, AES-256-GCM</li>
+          <li><strong>Password KDF:</strong> Argon2id</li>
+        </ul>
+        <p>Implemented in the browser via <a href="https://github.com/paulmillr/noble-curves">@noble/curves</a>,
+          <a href="https://github.com/paulmillr/noble-post-quantum">@noble/post-quantum</a>,
+          <a href="https://github.com/paulmillr/noble-hashes">@noble/hashes</a>, and the WebCrypto API.
+          Files are encrypted in your browser; the server never sees plaintext or your private keys.</p>
       </section>
 
       <section id="view-signup" class="view hidden">
@@ -89,6 +106,28 @@
           <a href="#/inbox">Inbox</a>
           <a href="#/sent">Sent</a>
         </nav>
+        <div id="dash-recovery-banner" class="warn hidden" style="margin-top:1rem;">
+          <strong>Recovery code currently restores Phase 3a keys only.</strong>
+          <p style="margin:0.5rem 0;">Your account predates the
+            <code>wrapped_recovery_key</code> field, so recovering with your
+            recovery code today gives you back the original four keypairs but
+            not secp384r1 / ECDSA-P384 / ML-KEM-1024 / ML-DSA-87. Paste your
+            recovery code below to fix this — it derives a key, wraps it under
+            your password key for future use, and re-wraps your full v2 bundle
+            under it. The code is never sent to the server.</p>
+          <form id="recovery-rewrap-form" style="margin-top:0.5rem;">
+            <label>Recovery code
+              <input type="text" name="recovery_code" required
+                     autocomplete="off" spellcheck="false"
+                     placeholder="abcd-efgh-ijkl-..." />
+            </label>
+            <div class="button-row">
+              <button type="submit">Re-enable recovery</button>
+              <button type="button" id="recovery-rewrap-dismiss" class="secondary">Dismiss</button>
+            </div>
+          </form>
+          <div id="recovery-rewrap-progress" class="progress hidden"></div>
+        </div>
         <details>
           <summary>Your public-key fingerprints</summary>
           <table id="dash-fingerprints">
@@ -107,17 +146,57 @@
           <label>Recipient emails (comma or whitespace separated)
             <textarea name="recipients" rows="2" required placeholder="alice@example.com, bob@example.com"></textarea>
           </label>
-          <button type="submit">Encrypt &amp; send</button>
+          <button type="submit">Continue →</button>
           <a href="#/" class="cancel">Cancel</a>
         </form>
         <div id="send-progress" class="progress hidden"></div>
+      </section>
+
+      <section id="view-suite" class="view hidden">
+        <div class="suite-screen">
+          <div class="suite-main">
+            <h2 class="suite-title">Cipher suite</h2>
+            <p class="suite-blurb">Pick a compliance preset, or hand-tune each primitive. Selections apply to both the TLS handshake and the file envelope sent to your recipient.</p>
+
+            <div class="posture-row" id="suite-posture-row"></div>
+
+            <div class="tls-toggle" id="suite-tls-toggle"></div>
+
+            <div id="suite-categories"></div>
+          </div>
+
+          <aside class="suite-rail">
+            <div>
+              <div class="rail-section-label">Recipient</div>
+              <div class="recipient-card" id="suite-recipient"></div>
+            </div>
+
+            <div>
+              <div class="rail-section-label">Posture</div>
+              <div class="posture-badge" id="suite-posture-badge"></div>
+            </div>
+
+            <div>
+              <div class="rail-section-label">Cipher chain</div>
+              <div class="chain-stack" id="suite-chain"></div>
+            </div>
+
+            <div id="suite-warning"></div>
+
+            <div class="suite-actions">
+              <button class="suite-back-btn" id="suite-back">← Back</button>
+              <button class="suite-share-btn" id="suite-share">Encrypt &amp; share</button>
+            </div>
+          </aside>
+        </div>
+        <div id="suite-progress" class="progress hidden"></div>
       </section>
 
       <section id="view-inbox" class="view hidden">
         <h2>Inbox</h2>
         <p><a href="#/">Back to dashboard</a></p>
         <table id="inbox-table">
-          <thead><tr><th>From</th><th>File</th><th>Size</th><th>Received</th><th></th></tr></thead>
+          <thead><tr><th>From</th><th>File</th><th>Size</th><th>Suite</th><th>Received</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
         <p id="inbox-empty" class="muted hidden">No files in your inbox yet.</p>
@@ -127,7 +206,7 @@
         <h2>Sent</h2>
         <p><a href="#/">Back to dashboard</a></p>
         <table id="sent-table">
-          <thead><tr><th>Sent</th><th>Size</th><th>Recipients</th></tr></thead>
+          <thead><tr><th>Sent</th><th>Size</th><th>Suite</th><th>Recipients</th></tr></thead>
           <tbody></tbody>
         </table>
         <p id="sent-empty" class="muted hidden">You haven't sent anything yet.</p>

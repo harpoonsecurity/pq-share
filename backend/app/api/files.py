@@ -15,6 +15,7 @@ from ..email_send import send_email
 from ..models import File as FileModel
 from ..models import FileRecipient, User
 from ..security import b64url, b64url_decode, normalize_email
+from ..suites import CryptoSuite
 from .auth import PublicKeys, current_user
 
 
@@ -23,8 +24,32 @@ router = APIRouter(prefix="/api/files", tags=["files"])
 
 
 MAX_BLOB_BYTES = 100 * 1024 * 1024  # 100 MiB
-EPH_X25519_LEN = 32
-ML_KEM_768_CT_LEN = 1088
+
+# (ephemeral_slot_len, kem_ciphertext_slot_len). 0 means the slot must be empty
+# under that KEX. The "ephemeral_x25519_pub" wire field is reused for secp384r1
+# compressed pubkeys (49 bytes), and "kem_ciphertext" is reused for ML-KEM-1024
+# ciphertexts (1568 bytes).
+_KEX_LENS: dict[str, tuple[int, int]] = {
+    "X25519":          (32, 0),
+    "X25519MLKEM768":  (32, 1088),
+    "ML-KEM-768":      (0,  1088),
+    "secp384r1":       (49, 0),
+    "ML-KEM-1024":     (0,  1568),
+}
+# (sig_ed25519_slot_len, sig_mldsa65_slot_len). The classical-sig slot carries
+# either Ed25519 (64B) or ECDSA-P384 raw R||S (96B); the PQ-sig slot carries
+# either ML-DSA-65 (3309B) or ML-DSA-87 (4627B).
+_SIG_LENS: dict[str, tuple[int, int]] = {
+    "Ed25519":           (64, 0),
+    "Ed25519+ML-DSA-65": (64, 3309),
+    "ML-DSA-65":         (0,  3309),
+    "ECDSA-P384":        (96, 0),
+    "ML-DSA-87":         (0,  4627),
+}
+
+# Legacy default lengths when no suite is supplied.
+_LEGACY_KEX_LENS = (32, 1088)        # hybrid X25519+ML-KEM-768
+_LEGACY_SIG_LENS = (64, 3309)        # Ed25519+ML-DSA-65
 
 
 def _decode(value: str, *, field: str, expected_len: int | None = None) -> bytes:
@@ -40,8 +65,30 @@ def _decode(value: str, *, field: str, expected_len: int | None = None) -> bytes
     return raw
 
 
+def _decode_exact(value: str, field: str, expected_len: int) -> bytes:
+    """Decode a field that must be exactly `expected_len` bytes (0 means empty)."""
+    raw = _decode(value, field=field)
+    if len(raw) != expected_len:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field}: expected {expected_len} bytes, got {len(raw)}",
+        )
+    return raw
+
+
 def _new_file_id() -> str:
     return secrets.token_hex(32)
+
+
+def _suite_view(suite_json: str | None) -> dict | None:
+    """Re-validate stored suite JSON and return it with derived fields, or None."""
+    if not suite_json:
+        return None
+    try:
+        return CryptoSuite.model_validate_json(suite_json).with_derived()
+    except Exception as exc:
+        log.warning("stored suite_json failed re-validation: %s", exc)
+        return None
 
 
 class UploadRecipient(BaseModel):
@@ -57,6 +104,7 @@ class UploadMeta(BaseModel):
     sig_ed25519: str
     sig_mldsa65: str
     recipients: list[UploadRecipient]
+    suite: CryptoSuite | None = None
 
 
 class UploadResponse(BaseModel):
@@ -79,8 +127,18 @@ async def upload(
         raise HTTPException(status_code=400, detail="recipients: at least one required")
 
     filename_enc = _decode(meta_obj.filename_enc, field="filename_enc")
-    sig_ed = _decode(meta_obj.sig_ed25519, field="sig_ed25519", expected_len=64)
-    sig_mldsa = _decode(meta_obj.sig_mldsa65, field="sig_mldsa65", expected_len=3309)
+
+    # Determine the exact byte count this suite expects for each wire-format slot.
+    # No suite supplied = legacy client = original hybrid+dual lengths.
+    if meta_obj.suite is not None:
+        eph_len, kem_ct_len = _KEX_LENS.get(meta_obj.suite.kex, _LEGACY_KEX_LENS)
+        sig_ed_len, sig_mldsa_len = _SIG_LENS.get(meta_obj.suite.sig, _LEGACY_SIG_LENS)
+    else:
+        eph_len, kem_ct_len = _LEGACY_KEX_LENS
+        sig_ed_len, sig_mldsa_len = _LEGACY_SIG_LENS
+
+    sig_ed = _decode_exact(meta_obj.sig_ed25519, "sig_ed25519", sig_ed_len)
+    sig_mldsa = _decode_exact(meta_obj.sig_mldsa65, "sig_mldsa65", sig_mldsa_len)
 
     resolved: list[tuple[User, UploadRecipient, bytes, bytes, bytes]] = []
     seen_ids: set[int] = set()
@@ -92,8 +150,8 @@ async def upload(
         if recipient.id in seen_ids:
             raise HTTPException(status_code=400, detail=f"duplicate recipient: {r.email}")
         seen_ids.add(recipient.id)
-        eph = _decode(r.ephemeral_x25519_pub, field=f"recipient[{r.email}].ephemeral_x25519_pub", expected_len=EPH_X25519_LEN)
-        kem_ct = _decode(r.kem_ciphertext, field=f"recipient[{r.email}].kem_ciphertext", expected_len=ML_KEM_768_CT_LEN)
+        eph = _decode_exact(r.ephemeral_x25519_pub, f"recipient[{r.email}].ephemeral_x25519_pub", eph_len)
+        kem_ct = _decode_exact(r.kem_ciphertext, f"recipient[{r.email}].kem_ciphertext", kem_ct_len)
         wrapped = _decode(r.wrapped_key, field=f"recipient[{r.email}].wrapped_key")
         resolved.append((recipient, r, eph, kem_ct, wrapped))
 
@@ -122,6 +180,7 @@ async def upload(
         metadata_json=meta_obj.metadata_json,
         sig_ed25519=sig_ed,
         sig_mldsa65=sig_mldsa,
+        suite_json=meta_obj.suite.model_dump_json() if meta_obj.suite else None,
     )
     db.add(file_row)
 
@@ -161,6 +220,7 @@ class InboxItem(BaseModel):
     ciphertext_size: int
     created_at: datetime
     downloaded_at: datetime | None
+    suite: dict | None = None
 
 
 @router.get("/inbox", response_model=list[InboxItem])
@@ -183,6 +243,7 @@ async def inbox(
             ciphertext_size=f.size_ciphertext,
             created_at=f.created_at,
             downloaded_at=fr.downloaded_at,
+            suite=_suite_view(f.suite_json),
         )
         for f, fr, sender in rows
     ]
@@ -198,6 +259,7 @@ class SentItem(BaseModel):
     ciphertext_size: int
     created_at: datetime
     recipients: list[SentRecipient]
+    suite: dict | None = None
 
 
 @router.get("/sent", response_model=list[SentItem])
@@ -227,6 +289,7 @@ async def sent(
                 ciphertext_size=f.size_ciphertext,
                 created_at=f.created_at,
                 recipients=[SentRecipient(email=u.email, downloaded_at=fr.downloaded_at) for fr, u in rows],
+                suite=_suite_view(f.suite_json),
             )
         )
     return out
@@ -245,6 +308,7 @@ class FileMetaResponse(BaseModel):
     wrapped_key: str
     ciphertext_size: int
     created_at: datetime
+    suite: dict | None = None
 
 
 async def _file_for_recipient(
@@ -288,6 +352,7 @@ async def file_meta(
         wrapped_key=b64url(fr.wrapped_key),
         ciphertext_size=f.size_ciphertext,
         created_at=f.created_at,
+        suite=_suite_view(f.suite_json),
     )
 
 

@@ -25,6 +25,11 @@ class User(Base):
     pub_mlkem768: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     pub_ed25519: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     pub_mldsa65: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    # Phase 3b additions: keypair set for NIST 800-52 R2 / PQC-only / CNSA 2.0 suites.
+    pub_secp384r1: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    pub_ecdsap384: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    pub_mlkem1024: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    pub_mldsa87: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
     kdf_salt: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     recovery_salt: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
@@ -32,6 +37,10 @@ class User(Base):
 
     wrapped_priv_password: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     wrapped_priv_recovery: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    # AES-GCM(wrapKey, recoveryKey). Lets the client re-wrap the recovery
+    # bundle on subsequent logins without ever asking for the recovery code
+    # again. Nullable: legacy accounts predate this column.
+    wrapped_recovery_key: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
 
 class EmailChallenge(Base):
@@ -66,6 +75,7 @@ class File(Base):
     metadata_json: Mapped[str] = mapped_column(Text)
     sig_ed25519: Mapped[bytes] = mapped_column(LargeBinary)
     sig_mldsa65: Mapped[bytes] = mapped_column(LargeBinary)
+    suite_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 

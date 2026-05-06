@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..models import User
 from ..security import b64url, normalize_email
-from .auth import PublicKeys, current_user
+from .auth import PublicKeys, _public_keys_for, current_user
 
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -31,10 +31,5 @@ async def lookup(
     return UserLookupResponse(
         user_id=user.id,
         email=user.email,
-        public_keys=PublicKeys(
-            x25519=b64url(user.pub_x25519),
-            ml_kem_768=b64url(user.pub_mlkem768),
-            ed25519=b64url(user.pub_ed25519),
-            ml_dsa_65=b64url(user.pub_mldsa65),
-        ),
+        public_keys=_public_keys_for(user),
     )

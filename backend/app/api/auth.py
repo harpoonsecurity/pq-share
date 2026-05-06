@@ -51,6 +51,24 @@ class PublicKeys(BaseModel):
     ml_kem_768: str
     ed25519: str
     ml_dsa_65: str
+    # Phase 3b additions; optional so legacy clients (pre-upgrade) still validate.
+    secp384r1:  str | None = None
+    ecdsa_p384: str | None = None
+    ml_kem_1024: str | None = None
+    ml_dsa_87:  str | None = None
+
+
+# Expected byte lengths for each pubkey field. Used by signup and upgrade.
+_PUBKEY_LENS: dict[str, int] = {
+    "x25519":      32,
+    "ml_kem_768":  1184,
+    "ed25519":     32,
+    "ml_dsa_65":   1952,
+    "secp384r1":   49,    # P-384 compressed
+    "ecdsa_p384":  49,    # P-384 compressed (separate keypair from ECDH key)
+    "ml_kem_1024": 1568,
+    "ml_dsa_87":   2592,
+}
 
 
 class SignupRequest(BaseModel):
@@ -62,6 +80,9 @@ class SignupRequest(BaseModel):
     public_keys: PublicKeys
     wrapped_priv_password: str
     wrapped_priv_recovery: str
+    # Optional for back-compat with very old clients; new clients always send it
+    # so subsequent bundle upgrades can re-wrap the recovery bundle automatically.
+    wrapped_recovery_key: str | None = None
 
 
 class SignupResponse(BaseModel):
@@ -72,6 +93,20 @@ class SignupResponse(BaseModel):
 class LoginChallengeResponse(BaseModel):
     kdf_salt: str
     kdf_params: KdfParams
+
+
+def _public_keys_for(user: User) -> PublicKeys:
+    """Serialize all 8 pubkeys; Phase 3b fields surface as None until upgrade."""
+    return PublicKeys(
+        x25519=b64url(user.pub_x25519),
+        ml_kem_768=b64url(user.pub_mlkem768),
+        ed25519=b64url(user.pub_ed25519),
+        ml_dsa_65=b64url(user.pub_mldsa65),
+        secp384r1=b64url(user.pub_secp384r1) if user.pub_secp384r1 else None,
+        ecdsa_p384=b64url(user.pub_ecdsap384) if user.pub_ecdsap384 else None,
+        ml_kem_1024=b64url(user.pub_mlkem1024) if user.pub_mlkem1024 else None,
+        ml_dsa_87=b64url(user.pub_mldsa87) if user.pub_mldsa87 else None,
+    )
 
 
 def _decode_b64(value: str, *, field: str, expected_len: int | None = None) -> bytes:
@@ -102,12 +137,23 @@ async def signup(
     kdf_salt = _decode_b64(body.kdf_salt, field="kdf_salt", expected_len=16)
     recovery_salt = _decode_b64(body.recovery_salt, field="recovery_salt", expected_len=16)
     auth_secret = _decode_b64(body.auth_secret, field="auth_secret", expected_len=32)
-    pub_x25519 = _decode_b64(body.public_keys.x25519, field="public_keys.x25519", expected_len=32)
-    pub_mlkem = _decode_b64(body.public_keys.ml_kem_768, field="public_keys.ml_kem_768", expected_len=1184)
-    pub_ed25519 = _decode_b64(body.public_keys.ed25519, field="public_keys.ed25519", expected_len=32)
-    pub_mldsa = _decode_b64(body.public_keys.ml_dsa_65, field="public_keys.ml_dsa_65", expected_len=1952)
+    pub_x25519     = _decode_b64(body.public_keys.x25519,     field="public_keys.x25519",     expected_len=_PUBKEY_LENS["x25519"])
+    pub_mlkem      = _decode_b64(body.public_keys.ml_kem_768, field="public_keys.ml_kem_768", expected_len=_PUBKEY_LENS["ml_kem_768"])
+    pub_ed25519    = _decode_b64(body.public_keys.ed25519,    field="public_keys.ed25519",    expected_len=_PUBKEY_LENS["ed25519"])
+    pub_mldsa      = _decode_b64(body.public_keys.ml_dsa_65,  field="public_keys.ml_dsa_65",  expected_len=_PUBKEY_LENS["ml_dsa_65"])
+    # Phase 3b pubkeys are required for new signups (existing accounts upgrade via /upgrade-keys).
+    if not all([body.public_keys.secp384r1, body.public_keys.ecdsa_p384, body.public_keys.ml_kem_1024, body.public_keys.ml_dsa_87]):
+        raise HTTPException(status_code=400, detail="public_keys: all 8 algorithms required for new signups")
+    pub_secp384r1  = _decode_b64(body.public_keys.secp384r1,   field="public_keys.secp384r1",   expected_len=_PUBKEY_LENS["secp384r1"])
+    pub_ecdsap384  = _decode_b64(body.public_keys.ecdsa_p384,  field="public_keys.ecdsa_p384",  expected_len=_PUBKEY_LENS["ecdsa_p384"])
+    pub_mlkem1024  = _decode_b64(body.public_keys.ml_kem_1024, field="public_keys.ml_kem_1024", expected_len=_PUBKEY_LENS["ml_kem_1024"])
+    pub_mldsa87    = _decode_b64(body.public_keys.ml_dsa_87,   field="public_keys.ml_dsa_87",   expected_len=_PUBKEY_LENS["ml_dsa_87"])
     wrapped_pwd = _decode_b64(body.wrapped_priv_password, field="wrapped_priv_password")
     wrapped_rec = _decode_b64(body.wrapped_priv_recovery, field="wrapped_priv_recovery")
+    wrapped_rec_key = (
+        _decode_b64(body.wrapped_recovery_key, field="wrapped_recovery_key")
+        if body.wrapped_recovery_key else None
+    )
 
     user = User(
         email=email,
@@ -117,11 +163,16 @@ async def signup(
         pub_mlkem768=pub_mlkem,
         pub_ed25519=pub_ed25519,
         pub_mldsa65=pub_mldsa,
+        pub_secp384r1=pub_secp384r1,
+        pub_ecdsap384=pub_ecdsap384,
+        pub_mlkem1024=pub_mlkem1024,
+        pub_mldsa87=pub_mldsa87,
         kdf_salt=kdf_salt,
         recovery_salt=recovery_salt,
         kdf_params=json.dumps(body.kdf_params.model_dump()),
         wrapped_priv_password=wrapped_pwd,
         wrapped_priv_recovery=wrapped_rec,
+        wrapped_recovery_key=wrapped_rec_key,
     )
     session.add(user)
     await session.flush()
@@ -208,6 +259,7 @@ class LoginResponse(BaseModel):
     email: str
     public_keys: PublicKeys
     wrapped_priv_password: str
+    wrapped_recovery_key: str | None = None
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -243,13 +295,9 @@ async def login(
     return LoginResponse(
         user_id=user.id,
         email=user.email,
-        public_keys=PublicKeys(
-            x25519=b64url(user.pub_x25519),
-            ml_kem_768=b64url(user.pub_mlkem768),
-            ed25519=b64url(user.pub_ed25519),
-            ml_dsa_65=b64url(user.pub_mldsa65),
-        ),
+        public_keys=_public_keys_for(user),
         wrapped_priv_password=b64url(user.wrapped_priv_password),
+        wrapped_recovery_key=b64url(user.wrapped_recovery_key) if user.wrapped_recovery_key else None,
     )
 
 
@@ -258,6 +306,11 @@ class MeResponse(BaseModel):
     email: str
     confirmed: bool
     public_keys: PublicKeys
+    # Surfaced so the client can show the retroactive recovery-rewrap banner
+    # to legacy accounts (those without wrapped_recovery_key set).
+    wrapped_recovery_key: str | None = None
+    recovery_salt: str | None = None
+    kdf_params: KdfParams | None = None
 
 
 @router.get("/me", response_model=MeResponse)
@@ -266,13 +319,92 @@ async def me(user: User = Depends(current_user)) -> MeResponse:
         user_id=user.id,
         email=user.email,
         confirmed=user.confirmed,
-        public_keys=PublicKeys(
-            x25519=b64url(user.pub_x25519),
-            ml_kem_768=b64url(user.pub_mlkem768),
-            ed25519=b64url(user.pub_ed25519),
-            ml_dsa_65=b64url(user.pub_mldsa65),
-        ),
+        public_keys=_public_keys_for(user),
+        wrapped_recovery_key=b64url(user.wrapped_recovery_key) if user.wrapped_recovery_key else None,
+        recovery_salt=b64url(user.recovery_salt) if user.recovery_salt else None,
+        kdf_params=KdfParams(**json.loads(user.kdf_params)) if user.kdf_params else None,
     )
+
+
+# ---------------------------------------------------------------------------
+# Key-set upgrade for existing users (Phase 3b).
+#
+# Pre-Phase-3b accounts have only the original 4 keypairs (x25519, ml_kem_768,
+# ed25519, ml_dsa_65) and a v1 wrapped private bundle. The frontend detects
+# this on login, generates the missing 4 keypairs locally, re-packs the
+# bundle as v2, re-wraps under the same password & recovery keys, and posts
+# here. This call atomically updates the user's pubkeys and both wrapped
+# bundles.
+# ---------------------------------------------------------------------------
+
+class UpgradeKeysRequest(BaseModel):
+    secp384r1:   str
+    ecdsa_p384:  str
+    ml_kem_1024: str
+    ml_dsa_87:   str
+    wrapped_priv_password: str
+    # If the client has access to the recoveryKey (via the stored
+    # wrapped_recovery_key, unwrappable with wrapKey), it should re-wrap the
+    # v2 bundle under recoveryKey and send it here. Pre-wrapped_recovery_key
+    # accounts will omit this and remain on a v1 recovery bundle until they
+    # re-key recovery via /set-recovery-key.
+    wrapped_priv_recovery: str | None = None
+    # Pre-wrapped_recovery_key accounts can also include this field to
+    # establish the wrapped recovery key for the first time.
+    wrapped_recovery_key: str | None = None
+
+
+class UpgradeKeysResponse(BaseModel):
+    ok: bool
+
+
+@router.post("/upgrade-keys", response_model=UpgradeKeysResponse)
+async def upgrade_keys(
+    body: UpgradeKeysRequest,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_session),
+) -> UpgradeKeysResponse:
+    if user.pub_secp384r1 is not None:
+        raise HTTPException(status_code=409, detail="keys already upgraded")
+    user.pub_secp384r1 = _decode_b64(body.secp384r1,   field="secp384r1",   expected_len=_PUBKEY_LENS["secp384r1"])
+    user.pub_ecdsap384 = _decode_b64(body.ecdsa_p384,  field="ecdsa_p384",  expected_len=_PUBKEY_LENS["ecdsa_p384"])
+    user.pub_mlkem1024 = _decode_b64(body.ml_kem_1024, field="ml_kem_1024", expected_len=_PUBKEY_LENS["ml_kem_1024"])
+    user.pub_mldsa87   = _decode_b64(body.ml_dsa_87,   field="ml_dsa_87",   expected_len=_PUBKEY_LENS["ml_dsa_87"])
+    user.wrapped_priv_password = _decode_b64(body.wrapped_priv_password, field="wrapped_priv_password")
+    if body.wrapped_priv_recovery is not None:
+        user.wrapped_priv_recovery = _decode_b64(body.wrapped_priv_recovery, field="wrapped_priv_recovery")
+    if body.wrapped_recovery_key is not None:
+        user.wrapped_recovery_key = _decode_b64(body.wrapped_recovery_key, field="wrapped_recovery_key")
+    await db.commit()
+    return UpgradeKeysResponse(ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Retroactive recovery-key wrapping for accounts that signed up before
+# wrapped_recovery_key existed. The user re-enters their recovery code on the
+# dashboard; the client derives recoveryKey, re-wraps the current bundle under
+# it, AND wraps recoveryKey under wrapKey, posting both atomically here.
+# ---------------------------------------------------------------------------
+
+class SetRecoveryKeyRequest(BaseModel):
+    wrapped_priv_recovery: str   # current bundle, freshly re-wrapped under recoveryKey
+    wrapped_recovery_key: str    # recoveryKey itself, wrapped under wrapKey
+
+
+class SetRecoveryKeyResponse(BaseModel):
+    ok: bool
+
+
+@router.post("/set-recovery-key", response_model=SetRecoveryKeyResponse)
+async def set_recovery_key(
+    body: SetRecoveryKeyRequest,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_session),
+) -> SetRecoveryKeyResponse:
+    user.wrapped_priv_recovery = _decode_b64(body.wrapped_priv_recovery, field="wrapped_priv_recovery")
+    user.wrapped_recovery_key  = _decode_b64(body.wrapped_recovery_key,  field="wrapped_recovery_key")
+    await db.commit()
+    return SetRecoveryKeyResponse(ok=True)
 
 
 @router.post("/logout")

@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pq-share — Cipher Suite Picker (static mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Gravel Road brand */
+  --dark:        #111314;
+  --slate:       #1a1d1f;
+  --stone:       #3a3d40;
+  --fog:         #8a8d90;
+  --cream:       #d4cfc4;
+  --white:       #f0ece4;
+  --gold:        #c9a84c;
+  --gold-light:  #e2c375;
+  --gold-dim:    #7a6030;
+
+  /* Strength tiers */
+  --tier-classical: #c97a4c;
+  --tier-hybrid:    #c9a84c;
+  --tier-pqc:       #7ec98a;
+  --tier-cnsa:      #a47ec9;
+
+  /* Tier glow alphas */
+  --tier-classical-glow: #c97a4c33;
+  --tier-hybrid-glow:    #c9a84c33;
+  --tier-pqc-glow:       #7ec98a33;
+  --tier-cnsa-glow:      #a47ec933;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--dark);
+  color: var(--white);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "ss01", "cv05";
+  padding: 48px 24px;
+}
+
+a { color: var(--gold); text-decoration: none; }
+a:hover { color: var(--gold-light); }
+
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.serif { font-family: "Fraunces", Georgia, serif; }
+
+/* Page-level mockup chrome */
+.mockup-wrap { max-width: 1320px; margin: 0 auto; }
+.mockup-title {
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 32px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+.mockup-subtitle {
+  color: var(--fog);
+  font-size: 14px;
+  margin: 0 0 48px;
+  max-width: 720px;
+}
+
+.state-section { margin-bottom: 72px; }
+.state-label {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--stone);
+}
+.state-label-num {
+  font-family: "JetBrains Mono", monospace;
+  color: var(--fog);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.state-label-text {
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 22px;
+  color: var(--white);
+}
+.state-label-aside {
+  color: var(--cream);
+  font-size: 13px;
+  margin-left: auto;
+}
+
+/* The "screen" — represents one full app view */
+.screen {
+  background: var(--slate);
+  border-radius: 12px;
+  border: 1px solid var(--stone);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  grid-template-rows: auto 1fr;
+  min-height: 720px;
+  box-shadow: 0 12px 40px #0008;
+}
+
+/* ── Header strip ── */
+.app-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--stone);
+  background: linear-gradient(to bottom, #15181a, var(--slate));
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+.brand-mark {
+  width: 22px; height: 22px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+  position: relative;
+}
+.brand-mark::after {
+  content: ""; position: absolute; inset: 4px;
+  border-radius: 2px;
+  background: var(--dark);
+}
+.user-chip {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--cream);
+}
+.avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--stone), #555);
+  border: 1px solid var(--fog);
+  display: grid; place-items: center;
+  color: var(--white); font-weight: 600; font-size: 11px;
+}
+
+/* ── Main pane ── */
+.main {
+  padding: 28px 32px 36px;
+  overflow: auto;
+}
+.main-title {
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 26px;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+.main-blurb {
+  color: var(--fog);
+  font-size: 13px;
+  margin: 0 0 24px;
+}
+
+/* Posture chip row */
+.posture-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.posture-chip {
+  --chip-color: var(--stone);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--stone);
+  background: transparent;
+  color: var(--cream);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.posture-chip::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--chip-color);
+  display: inline-block;
+}
+.posture-chip[data-tier="classical"] { --chip-color: var(--tier-classical); }
+.posture-chip[data-tier="hybrid"]    { --chip-color: var(--tier-hybrid); }
+.posture-chip[data-tier="pqc"]       { --chip-color: var(--tier-pqc); }
+.posture-chip[data-tier="cnsa"]      { --chip-color: var(--tier-cnsa); }
+.posture-chip.is-active {
+  border-color: var(--chip-color);
+  background: color-mix(in oklab, var(--chip-color) 14%, transparent);
+  color: var(--white);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--chip-color) 30%, transparent) inset;
+}
+
+/* TLS version segmented control */
+.tls-toggle {
+  display: inline-flex;
+  border: 1px solid var(--stone);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 28px;
+  background: #14171a;
+}
+.tls-toggle button {
+  background: transparent;
+  border: 0;
+  color: var(--fog);
+  padding: 6px 14px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+.tls-toggle button.is-active {
+  background: var(--stone);
+  color: var(--white);
+}
+.tls-toggle button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Category card */
+.cat-card {
+  background: #15181a;
+  border: 1px solid var(--stone);
+  border-left: 3px solid var(--tier-color, var(--stone));
+  border-radius: 8px;
+  padding: 18px 20px 16px;
+  margin-bottom: 14px;
+  position: relative;
+}
+.cat-card[data-tier="classical"] { --tier-color: var(--tier-classical); }
+.cat-card[data-tier="hybrid"]    { --tier-color: var(--tier-hybrid); }
+.cat-card[data-tier="pqc"]       { --tier-color: var(--tier-pqc); }
+.cat-card[data-tier="cnsa"]      { --tier-color: var(--tier-cnsa); }
+
+.cat-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.cat-title {
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.005em;
+}
+.cat-purpose {
+  color: var(--fog);
+  font-size: 12px;
+  margin-left: auto;
+}
+.cat-lock {
+  color: var(--fog);
+  font-size: 11px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.cat-lock svg { width: 11px; height: 11px; }
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.pill {
+  --pill-tier: var(--stone);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  padding: 6px 11px 6px 11px;
+  border-radius: 4px;
+  border: 1px solid var(--stone);
+  background: #1c1f22;
+  color: var(--cream);
+  cursor: pointer;
+  position: relative;
+  transition: all 120ms ease;
+  border-top: 3px solid var(--pill-tier);
+  padding-top: 4px;
+}
+.pill[data-tier="classical"] { --pill-tier: var(--tier-classical); }
+.pill[data-tier="hybrid"]    { --pill-tier: var(--tier-hybrid); }
+.pill[data-tier="pqc"]       { --pill-tier: var(--tier-pqc); }
+.pill[data-tier="cnsa"]      { --pill-tier: var(--tier-cnsa); }
+
+.pill.is-selected {
+  background: color-mix(in oklab, var(--pill-tier) 16%, #1c1f22);
+  color: var(--white);
+  border-color: color-mix(in oklab, var(--pill-tier) 50%, var(--stone));
+}
+.pill.is-locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #16191c;
+}
+.pill.is-locked-hidden {
+  opacity: 0.15;
+  filter: grayscale(0.5);
+}
+.pill.is-warning {
+  animation: shimmer-warn 2.4s ease-in-out infinite;
+}
+@keyframes shimmer-warn {
+  0%, 100% { box-shadow: 0 0 0 0 var(--tier-classical-glow); }
+  50%      { box-shadow: 0 0 0 4px var(--tier-classical-glow); }
+}
+
+.cat-microcopy {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--cream);
+  border-left: 2px solid var(--stone);
+  padding-left: 10px;
+  line-height: 1.45;
+}
+.cat-microcopy.is-warn {
+  color: #e0a78a;
+  border-left-color: var(--tier-classical);
+}
+
+/* ── Right rail ── */
+.rail {
+  background: #131618;
+  border-left: 1px solid var(--stone);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  font-size: 13px;
+}
+.rail-section-label {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 10px;
+  color: var(--fog);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.recipient-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1a1d20;
+  border: 1px solid var(--stone);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.recipient-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4a5060, #2a2e35);
+  display: grid; place-items: center;
+  color: var(--white); font-weight: 600;
+  font-size: 12px;
+  border: 1px solid var(--fog);
+}
+.recipient-meta { flex: 1; min-width: 0; }
+.recipient-name {
+  color: var(--white);
+  font-weight: 500;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recipient-status {
+  color: var(--fog);
+  font-size: 11px;
+  display: flex; align-items: center; gap: 4px;
+}
+.recipient-status::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--tier-pqc);
+}
+
+/* Cipher chain visualization */
+.chain-block { display: flex; flex-direction: column; gap: 14px; }
+.chain {
+  background: #16191c;
+  border: 1px solid var(--stone);
+  border-radius: 8px;
+  padding: 14px 12px 12px;
+}
+.chain-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--fog);
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+.chain-flow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.chain-end {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--stone);
+  border: 1px solid var(--fog);
+  display: grid; place-items: center;
+  font-size: 10px; color: var(--white);
+}
+.chain-arrow {
+  color: var(--stone); font-size: 13px;
+  flex-shrink: 0;
+}
+.chain-pill {
+  --pill-tier: var(--stone);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--pill-tier) 18%, #1a1d20);
+  color: var(--white);
+  border: 1px solid color-mix(in oklab, var(--pill-tier) 40%, var(--stone));
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chain-pill[data-tier="classical"] { --pill-tier: var(--tier-classical); }
+.chain-pill[data-tier="hybrid"]    { --pill-tier: var(--tier-hybrid); }
+.chain-pill[data-tier="pqc"]       { --pill-tier: var(--tier-pqc); }
+.chain-pill[data-tier="cnsa"]      { --pill-tier: var(--tier-cnsa); }
+
+.chain[data-glow="classical"] { box-shadow: 0 0 0 1px var(--tier-classical-glow), 0 0 24px -4px var(--tier-classical-glow); }
+.chain[data-glow="hybrid"]    { box-shadow: 0 0 0 1px var(--tier-hybrid-glow),    0 0 24px -4px var(--tier-hybrid-glow); }
+.chain[data-glow="pqc"]       { box-shadow: 0 0 0 1px var(--tier-pqc-glow),       0 0 24px -4px var(--tier-pqc-glow); }
+.chain[data-glow="cnsa"]      { box-shadow: 0 0 0 1px var(--tier-cnsa-glow),      0 0 24px -4px var(--tier-cnsa-glow); }
+
+/* Posture badge */
+.posture-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: #16191c;
+  border: 1px solid var(--stone);
+  border-radius: 8px;
+}
+.posture-badge[data-tier="classical"] { border-color: color-mix(in oklab, var(--tier-classical) 50%, var(--stone)); }
+.posture-badge[data-tier="hybrid"]    { border-color: color-mix(in oklab, var(--tier-hybrid) 50%, var(--stone)); }
+.posture-badge[data-tier="pqc"]       { border-color: color-mix(in oklab, var(--tier-pqc) 50%, var(--stone)); }
+.posture-badge[data-tier="cnsa"]      { border-color: color-mix(in oklab, var(--tier-cnsa) 50%, var(--stone)); }
+
+.posture-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.posture-badge[data-tier="classical"] .posture-dot { background: var(--tier-classical); box-shadow: 0 0 16px var(--tier-classical); }
+.posture-badge[data-tier="hybrid"]    .posture-dot { background: var(--tier-hybrid);    box-shadow: 0 0 16px var(--tier-hybrid); }
+.posture-badge[data-tier="pqc"]       .posture-dot { background: var(--tier-pqc);       box-shadow: 0 0 16px var(--tier-pqc); }
+.posture-badge[data-tier="cnsa"]      .posture-dot { background: var(--tier-cnsa);      box-shadow: 0 0 16px var(--tier-cnsa); }
+
+.posture-text { flex: 1; }
+.posture-name {
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--white);
+  letter-spacing: -0.005em;
+}
+.posture-sub { color: var(--fog); font-size: 11px; }
+
+/* Metrics block */
+.metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--stone);
+  border: 1px solid var(--stone);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.metric {
+  background: #16191c;
+  padding: 10px 12px;
+}
+.metric-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fog);
+}
+.metric-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 16px;
+  color: var(--white);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* Warning banner for weak choices */
+.warn-banner {
+  background: linear-gradient(to right, color-mix(in oklab, var(--tier-classical) 14%, #16191c), #16191c);
+  border: 1px solid color-mix(in oklab, var(--tier-classical) 40%, var(--stone));
+  border-left: 3px solid var(--tier-classical);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #e8c5a8;
+}
+.warn-banner-title {
+  font-weight: 600;
+  color: #f4d4b6;
+  margin-bottom: 2px;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* Share button */
+.share-btn {
+  background: var(--gold);
+  color: #0a0a0b;
+  border: 0;
+  padding: 12px 18px;
+  border-radius: 6px;
+  font-family: "Inter", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 120ms ease;
+  text-align: center;
+}
+.share-btn:hover { background: var(--gold-light); }
+.share-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.share-btn.is-warn {
+  background: #c9a84c;
+  position: relative;
+}
+
+/* Mockup-only annotation tooltip */
+.note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--fog);
+  padding-left: 12px;
+  border-left: 2px dashed var(--stone);
+}
+
+/* Responsive: collapse rail under main below 1080 */
+@media (max-width: 1080px) {
+  .screen { grid-template-columns: 1fr; }
+  .rail { border-left: 0; border-top: 1px solid var(--stone); }
+}
+</style>
+</head>
+<body>
+<div class="mockup-wrap">
+
+  <h1 class="mockup-title">pq-share — Cipher Suite Picker</h1>
+  <p class="mockup-subtitle">Static layout, three states. Gravel Road palette (slate / gold) with strength-tier accents (rust → gold → sage → mauve). The picker sits between recipient selection and file upload in the share flow.</p>
+
+  <!-- ───────────────────────────────────────────────── STATE 1 -->
+  <section class="state-section">
+    <div class="state-label">
+      <span class="state-label-num">State 01</span>
+      <span class="state-label-text">Default — custom mode, TLS 1.3, hybrid PQC selected</span>
+      <span class="state-label-aside">Power-user starting point. All five categories editable.</span>
+    </div>
+
+    <div class="screen">
+      <header class="app-header">
+        <div class="brand">
+          <div class="brand-mark"></div>
+          <span>pq-share</span>
+          <span style="color:var(--fog);font-weight:400;font-size:13px;">/ share file</span>
+        </div>
+        <div class="user-chip">
+          <div class="avatar">JG</div>
+          <span>jim@axarcorp.com</span>
+        </div>
+      </header>
+
+      <div class="main">
+        <h2 class="main-title">Cipher suite</h2>
+        <p class="main-blurb">Pick a compliance preset, or hand-tune each primitive. Selections apply to both the TLS handshake and the file envelope sent to your recipient.</p>
+
+        <div class="posture-row">
+          <button class="posture-chip is-active" data-tier="hybrid">Custom</button>
+          <button class="posture-chip" data-tier="classical">NIST SP 800-52 R2</button>
+          <button class="posture-chip" data-tier="pqc">PQC-only</button>
+          <button class="posture-chip" data-tier="cnsa">CNSA 2.0</button>
+          <button class="posture-chip" data-tier="hybrid">FIPS 140-3 hybrid</button>
+        </div>
+
+        <div class="tls-toggle">
+          <button>TLS 1.2</button>
+          <button class="is-active">TLS 1.3</button>
+        </div>
+
+        <!-- RNG -->
+        <div class="cat-card" data-tier="hybrid">
+          <div class="cat-head">
+            <span class="cat-title">Random number generator</span>
+            <span class="cat-purpose">How nonces, IVs, and ephemeral keys are generated</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill" data-tier="hybrid">HMAC-DRBG-SHA256</button>
+            <button class="pill is-selected" data-tier="hybrid">AES-CTR-DRBG-256</button>
+            <button class="pill" data-tier="pqc">HMAC-DRBG-SHA512</button>
+          </div>
+          <div class="cat-microcopy">FIPS 140-3 approved DRBG seeded from <span class="mono">getrandom(2)</span>.</div>
+        </div>
+
+        <!-- KEX -->
+        <div class="cat-card" data-tier="hybrid">
+          <div class="cat-head">
+            <span class="cat-title">Key exchange (TLS &amp; envelope KEM)</span>
+            <span class="cat-purpose">How session keys are agreed</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill" data-tier="classical">X25519</button>
+            <button class="pill" data-tier="classical">secp384r1</button>
+            <button class="pill is-selected" data-tier="hybrid">X25519MLKEM768</button>
+            <button class="pill" data-tier="pqc">ML-KEM-768</button>
+            <button class="pill" data-tier="cnsa">ML-KEM-1024</button>
+          </div>
+          <div class="cat-microcopy">Hybrid: classically secure today, quantum-secure later. <a href="#">What is post-quantum KEX?</a></div>
+        </div>
+
+        <!-- Hash -->
+        <div class="cat-card" data-tier="hybrid">
+          <div class="cat-head">
+            <span class="cat-title">Hash &amp; HKDF</span>
+            <span class="cat-purpose">How key material is derived and content is bound</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill" data-tier="classical">SHA-256</button>
+            <button class="pill is-selected" data-tier="hybrid">SHA-384</button>
+            <button class="pill" data-tier="hybrid">SHA-512</button>
+            <button class="pill" data-tier="pqc">SHA3-512</button>
+          </div>
+          <div class="cat-microcopy">SHA-384 paired with AES-256 keeps a uniform 192-bit security margin.</div>
+        </div>
+
+        <!-- Symmetric -->
+        <div class="cat-card" data-tier="hybrid">
+          <div class="cat-head">
+            <span class="cat-title">Symmetric encryption</span>
+            <span class="cat-purpose">How file bytes &amp; TLS records are sealed</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill" data-tier="classical">AES-128-GCM</button>
+            <button class="pill is-selected" data-tier="hybrid">AES-256-GCM</button>
+            <button class="pill" data-tier="hybrid">ChaCha20-Poly1305</button>
+            <button class="pill" data-tier="pqc">AES-256-GCM-SIV</button>
+          </div>
+          <div class="cat-microcopy">256-bit AEAD with implicit nonce derivation per RFC 5116.</div>
+        </div>
+
+        <!-- Signature -->
+        <div class="cat-card" data-tier="hybrid">
+          <div class="cat-head">
+            <span class="cat-title">Digital signature</span>
+            <span class="cat-purpose">How sender identity is proven on the envelope</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill" data-tier="classical">Ed25519</button>
+            <button class="pill" data-tier="classical">ECDSA-P384</button>
+            <button class="pill is-selected" data-tier="hybrid">Ed25519 + ML-DSA-65</button>
+            <button class="pill" data-tier="pqc">ML-DSA-65</button>
+            <button class="pill" data-tier="cnsa">ML-DSA-87</button>
+          </div>
+          <div class="cat-microcopy">Dual signatures: recipient verifies both — fails closed if either is broken.</div>
+        </div>
+      </div>
+
+      <aside class="rail">
+        <div>
+          <div class="rail-section-label">Recipient</div>
+          <div class="recipient-card">
+            <div class="recipient-avatar">AK</div>
+            <div class="recipient-meta">
+              <div class="recipient-name">alice@kappa.engineering</div>
+              <div class="recipient-status">PQ-capable · key on file</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rail-section-label">Cipher chain</div>
+          <div class="chain-block">
+            <div class="chain" data-glow="hybrid">
+              <div class="chain-label"><span>TLS handshake</span><span class="mono" style="color:var(--cream)">+1184B</span></div>
+              <div class="chain-flow">
+                <div class="chain-end" title="You">U</div>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="hybrid">DRBG</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="hybrid">X25519MLKEM768</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="hybrid">SHA-384</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="hybrid">AES-256</span>
+                <span class="chain-arrow">→</span>
+                <div class="chain-end" title="Server">S</div>
+              </div>
+            </div>
+            <div class="chain" data-glow="hybrid">
+              <div class="chain-label"><span>File envelope</span><span class="mono" style="color:var(--cream)">+2.1KB</span></div>
+              <div class="chain-flow">
+                <div class="chain-end" title="You">U</div>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="hybrid">AES-256</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="hybrid">HKDF-SHA384</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="hybrid">Ed25519+MLDSA65</span>
+                <span class="chain-arrow">→</span>
+                <div class="chain-end" title="Recipient">R</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rail-section-label">Posture</div>
+          <div class="posture-badge" data-tier="hybrid">
+            <div class="posture-dot"></div>
+            <div class="posture-text">
+              <div class="posture-name">Hybrid PQC</div>
+              <div class="posture-sub">Quantum-secure migration tier</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rail-section-label">Estimated overhead</div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">Handshake</div>
+              <div class="metric-value">+1,184 B</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Envelope</div>
+              <div class="metric-value">+2,108 B</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="share-btn">Encrypt &amp; share</button>
+      </aside>
+    </div>
+
+    <p class="note">Default state. "Custom" preset is implicit until a label preset is clicked. Each tier color (rust / gold / sage / mauve) appears on the card's left stripe and the pill's top stripe — no two competing accents per pill.</p>
+  </section>
+
+  <!-- ───────────────────────────────────────────────── STATE 2 -->
+  <section class="state-section">
+    <div class="state-label">
+      <span class="state-label-num">State 02</span>
+      <span class="state-label-text">CNSA 2.0 preset locked</span>
+      <span class="state-label-aside">All categories collapse to the single CNSA-permitted primitive. TLS 1.2 retracts.</span>
+    </div>
+
+    <div class="screen">
+      <header class="app-header">
+        <div class="brand">
+          <div class="brand-mark"></div>
+          <span>pq-share</span>
+          <span style="color:var(--fog);font-weight:400;font-size:13px;">/ share file</span>
+        </div>
+        <div class="user-chip">
+          <div class="avatar">JG</div>
+          <span>jim@axarcorp.com</span>
+        </div>
+      </header>
+
+      <div class="main">
+        <h2 class="main-title">Cipher suite</h2>
+        <p class="main-blurb">CNSA 2.0 mandates pure post-quantum primitives at NIST level 5. Every primitive is fixed; the picker becomes a transcript.</p>
+
+        <div class="posture-row">
+          <button class="posture-chip" data-tier="hybrid">Custom</button>
+          <button class="posture-chip" data-tier="classical">NIST SP 800-52 R2</button>
+          <button class="posture-chip" data-tier="pqc">PQC-only</button>
+          <button class="posture-chip is-active" data-tier="cnsa">CNSA 2.0</button>
+          <button class="posture-chip" data-tier="hybrid">FIPS 140-3 hybrid</button>
+        </div>
+
+        <div class="tls-toggle">
+          <button disabled>TLS 1.2</button>
+          <button class="is-active">TLS 1.3</button>
+        </div>
+
+        <div class="cat-card" data-tier="cnsa">
+          <div class="cat-head">
+            <span class="cat-title">Random number generator</span>
+            <span class="cat-purpose"><span class="cat-lock">🔒 CNSA-locked</span></span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-selected" data-tier="cnsa">AES-CTR-DRBG-256</button>
+            <button class="pill is-locked-hidden" data-tier="hybrid">HMAC-DRBG-SHA256</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">HMAC-DRBG-SHA512</button>
+          </div>
+          <div class="cat-microcopy">CNSA 2.0 §3.1 — DRBG must use AES-256 in CTR mode.</div>
+        </div>
+
+        <div class="cat-card" data-tier="cnsa">
+          <div class="cat-head">
+            <span class="cat-title">Key exchange (TLS &amp; envelope KEM)</span>
+            <span class="cat-purpose"><span class="cat-lock">🔒 CNSA-locked</span></span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-locked-hidden" data-tier="classical">X25519</button>
+            <button class="pill is-locked-hidden" data-tier="classical">secp384r1</button>
+            <button class="pill is-locked-hidden" data-tier="hybrid">X25519MLKEM768</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">ML-KEM-768</button>
+            <button class="pill is-selected" data-tier="cnsa">ML-KEM-1024</button>
+          </div>
+          <div class="cat-microcopy">Pure ML-KEM-1024. CNSA 2.0 disallows classical-only and hybrid KEX after 2033.</div>
+        </div>
+
+        <div class="cat-card" data-tier="cnsa">
+          <div class="cat-head">
+            <span class="cat-title">Hash &amp; HKDF</span>
+            <span class="cat-purpose"><span class="cat-lock">🔒 CNSA-locked</span></span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-locked-hidden" data-tier="classical">SHA-256</button>
+            <button class="pill is-locked-hidden" data-tier="hybrid">SHA-384</button>
+            <button class="pill is-selected" data-tier="cnsa">SHA-512</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">SHA3-512</button>
+          </div>
+          <div class="cat-microcopy">SHA-512 only — provides 256-bit collision resistance to match AES-256.</div>
+        </div>
+
+        <div class="cat-card" data-tier="cnsa">
+          <div class="cat-head">
+            <span class="cat-title">Symmetric encryption</span>
+            <span class="cat-purpose"><span class="cat-lock">🔒 CNSA-locked</span></span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-locked-hidden" data-tier="classical">AES-128-GCM</button>
+            <button class="pill is-selected" data-tier="cnsa">AES-256-GCM</button>
+            <button class="pill is-locked-hidden" data-tier="hybrid">ChaCha20-Poly1305</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">AES-256-GCM-SIV</button>
+          </div>
+          <div class="cat-microcopy">AES-256-GCM is the only AEAD CNSA 2.0 currently approves.</div>
+        </div>
+
+        <div class="cat-card" data-tier="cnsa">
+          <div class="cat-head">
+            <span class="cat-title">Digital signature</span>
+            <span class="cat-purpose"><span class="cat-lock">🔒 CNSA-locked</span></span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-locked-hidden" data-tier="classical">Ed25519</button>
+            <button class="pill is-locked-hidden" data-tier="classical">ECDSA-P384</button>
+            <button class="pill is-locked-hidden" data-tier="hybrid">Ed25519 + ML-DSA-65</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">ML-DSA-65</button>
+            <button class="pill is-selected" data-tier="cnsa">ML-DSA-87</button>
+          </div>
+          <div class="cat-microcopy">ML-DSA-87 (level 5). No classical fallback — pure PQ.</div>
+        </div>
+      </div>
+
+      <aside class="rail">
+        <div>
+          <div class="rail-section-label">Recipient</div>
+          <div class="recipient-card">
+            <div class="recipient-avatar">AK</div>
+            <div class="recipient-meta">
+              <div class="recipient-name">alice@kappa.engineering</div>
+              <div class="recipient-status">PQ-capable · key on file</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rail-section-label">Cipher chain</div>
+          <div class="chain-block">
+            <div class="chain" data-glow="cnsa">
+              <div class="chain-label"><span>TLS handshake</span><span class="mono" style="color:var(--cream)">+1,568B</span></div>
+              <div class="chain-flow">
+                <div class="chain-end" title="You">U</div>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="cnsa">DRBG</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="cnsa">ML-KEM-1024</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="cnsa">SHA-512</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="cnsa">AES-256</span>
+                <span class="chain-arrow">→</span>
+                <div class="chain-end" title="Server">S</div>
+              </div>
+            </div>
+            <div class="chain" data-glow="cnsa">
+              <div class="chain-label"><span>File envelope</span><span class="mono" style="color:var(--cream)">+4.7KB</span></div>
+              <div class="chain-flow">
+                <div class="chain-end" title="You">U</div>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="cnsa">AES-256</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="cnsa">HKDF-SHA512</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="cnsa">ML-DSA-87</span>
+                <span class="chain-arrow">→</span>
+                <div class="chain-end" title="Recipient">R</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rail-section-label">Posture</div>
+          <div class="posture-badge" data-tier="cnsa">
+            <div class="posture-dot"></div>
+            <div class="posture-text">
+              <div class="posture-name">CNSA 2.0</div>
+              <div class="posture-sub">NSA Commercial National Security Algorithm Suite v2 · NIST level 5</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rail-section-label">Estimated overhead</div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">Handshake</div>
+              <div class="metric-value">+1,568 B</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Envelope</div>
+              <div class="metric-value">+4,712 B</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="share-btn">Encrypt &amp; share</button>
+      </aside>
+    </div>
+
+    <p class="note">CNSA-locked state. Disallowed pills don't disappear — they fade to ~15% opacity so users see <em>what</em> isn't permitted. TLS 1.2 retracts entirely; CNSA is TLS 1.3 only.</p>
+  </section>
+
+  <!-- ───────────────────────────────────────────────── STATE 3 -->
+  <section class="state-section">
+    <div class="state-label">
+      <span class="state-label-num">State 03</span>
+      <span class="state-label-text">Weak classical custom — TLS 1.2, classical-only, with warning</span>
+      <span class="state-label-aside">Educational state — shows the cost of opting out of PQ.</span>
+    </div>
+
+    <div class="screen">
+      <header class="app-header">
+        <div class="brand">
+          <div class="brand-mark"></div>
+          <span>pq-share</span>
+          <span style="color:var(--fog);font-weight:400;font-size:13px;">/ share file</span>
+        </div>
+        <div class="user-chip">
+          <div class="avatar">JG</div>
+          <span>jim@axarcorp.com</span>
+        </div>
+      </header>
+
+      <div class="main">
+        <h2 class="main-title">Cipher suite</h2>
+        <p class="main-blurb">A classical-only suite is permitted but no longer recommended. The store-now-decrypt-later threat applies to anything sent here.</p>
+
+        <div class="posture-row">
+          <button class="posture-chip is-active" data-tier="classical">Custom</button>
+          <button class="posture-chip" data-tier="classical">NIST SP 800-52 R2</button>
+          <button class="posture-chip" data-tier="pqc">PQC-only</button>
+          <button class="posture-chip" data-tier="cnsa">CNSA 2.0</button>
+          <button class="posture-chip" data-tier="hybrid">FIPS 140-3 hybrid</button>
+        </div>
+
+        <div class="tls-toggle">
+          <button class="is-active">TLS 1.2</button>
+          <button>TLS 1.3</button>
+        </div>
+
+        <div class="cat-card" data-tier="hybrid">
+          <div class="cat-head">
+            <span class="cat-title">Random number generator</span>
+            <span class="cat-purpose">How nonces, IVs, and ephemeral keys are generated</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-selected" data-tier="hybrid">HMAC-DRBG-SHA256</button>
+            <button class="pill" data-tier="hybrid">AES-CTR-DRBG-256</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">HMAC-DRBG-SHA512</button>
+          </div>
+          <div class="cat-microcopy">FIPS-approved DRBG. (RNG choice is independent of the cipher tier.)</div>
+        </div>
+
+        <div class="cat-card" data-tier="classical">
+          <div class="cat-head">
+            <span class="cat-title">Key exchange</span>
+            <span class="cat-purpose">How session keys are agreed</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-selected is-warning" data-tier="classical">secp256r1</button>
+            <button class="pill" data-tier="classical">X25519</button>
+            <button class="pill" data-tier="classical">secp384r1</button>
+            <button class="pill is-locked-hidden" data-tier="hybrid">X25519MLKEM768</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">ML-KEM-768</button>
+            <button class="pill is-locked-hidden" data-tier="cnsa">ML-KEM-1024</button>
+          </div>
+          <div class="cat-microcopy is-warn">⚠ Classical ECDH is breakable by a sufficiently large quantum computer. Captured traffic can be decrypted retroactively.</div>
+        </div>
+
+        <div class="cat-card" data-tier="classical">
+          <div class="cat-head">
+            <span class="cat-title">Hash &amp; HKDF</span>
+            <span class="cat-purpose">How key material is derived</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-selected" data-tier="classical">SHA-256</button>
+            <button class="pill" data-tier="hybrid">SHA-384</button>
+            <button class="pill" data-tier="hybrid">SHA-512</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">SHA3-512</button>
+          </div>
+          <div class="cat-microcopy">SHA-256 is unbroken but pairs poorly with AES-256 (128-bit collision margin vs. 256-bit cipher).</div>
+        </div>
+
+        <div class="cat-card" data-tier="classical">
+          <div class="cat-head">
+            <span class="cat-title">Symmetric encryption</span>
+            <span class="cat-purpose">How file bytes &amp; TLS records are sealed</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill is-selected is-warning" data-tier="classical">AES-128-GCM</button>
+            <button class="pill" data-tier="hybrid">AES-256-GCM</button>
+            <button class="pill" data-tier="hybrid">ChaCha20-Poly1305</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">AES-256-GCM-SIV</button>
+          </div>
+          <div class="cat-microcopy is-warn">⚠ AES-128 has a Grover-reduced effective security of 64 bits against a quantum adversary. Acceptable for short-lived secrets, not for archival.</div>
+        </div>
+
+        <div class="cat-card" data-tier="classical">
+          <div class="cat-head">
+            <span class="cat-title">Digital signature</span>
+            <span class="cat-purpose">How sender identity is proven</span>
+          </div>
+          <div class="pill-row">
+            <button class="pill" data-tier="classical">Ed25519</button>
+            <button class="pill is-selected is-warning" data-tier="classical">ECDSA-P256</button>
+            <button class="pill" data-tier="classical">ECDSA-P384</button>
+            <button class="pill is-locked-hidden" data-tier="hybrid">Ed25519 + ML-DSA-65</button>
+            <button class="pill is-locked-hidden" data-tier="pqc">ML-DSA-65</button>
+            <button class="pill is-locked-hidden" data-tier="cnsa">ML-DSA-87</button>
+          </div>
+          <div class="cat-microcopy is-warn">⚠ ECDSA on 256-bit curves: forgeable by Shor's algorithm in polynomial time once large quantum computers exist.</div>
+        </div>
+      </div>
+
+      <aside class="rail">
+        <div>
+          <div class="rail-section-label">Recipient</div>
+          <div class="recipient-card">
+            <div class="recipient-avatar">AK</div>
+            <div class="recipient-meta">
+              <div class="recipient-name">alice@kappa.engineering</div>
+              <div class="recipient-status">PQ-capable · key on file</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rail-section-label">Cipher chain</div>
+          <div class="chain-block">
+            <div class="chain" data-glow="classical">
+              <div class="chain-label"><span>TLS handshake</span><span class="mono" style="color:var(--cream)">+128B</span></div>
+              <div class="chain-flow">
+                <div class="chain-end" title="You">U</div>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="hybrid">DRBG</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="classical">secp256r1</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="classical">SHA-256</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="classical">AES-128</span>
+                <span class="chain-arrow">→</span>
+                <div class="chain-end" title="Server">S</div>
+              </div>
+            </div>
+            <div class="chain" data-glow="classical">
+              <div class="chain-label"><span>File envelope</span><span class="mono" style="color:var(--cream)">+96B</span></div>
+              <div class="chain-flow">
+                <div class="chain-end" title="You">U</div>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="classical">AES-128</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="classical">HKDF-SHA256</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-pill" data-tier="classical">ECDSA-P256</span>
+                <span class="chain-arrow">→</span>
+                <div class="chain-end" title="Recipient">R</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="rail-section-label">Posture</div>
+          <div class="posture-badge" data-tier="classical">
+            <div class="posture-dot"></div>
+            <div class="posture-text">
+              <div class="posture-name">Classical only</div>
+              <div class="posture-sub">No post-quantum protection · pre-2024 baseline</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="warn-banner">
+          <div class="warn-banner-title">⚠ Harvest-now, decrypt-later risk</div>
+          A capture of this exchange is decryptable by any actor that later builds a cryptographically relevant quantum computer. Recipient's PQ key is on file; consider <a href="#">switching to Hybrid PQC</a>.
+        </div>
+
+        <div>
+          <div class="rail-section-label">Estimated overhead</div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">Handshake</div>
+              <div class="metric-value">+128 B</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Envelope</div>
+              <div class="metric-value">+96 B</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="share-btn">Encrypt &amp; share anyway</button>
+      </aside>
+    </div>
+
+    <p class="note">Weak-classical state. Selected weak pills emit a 2.4s rust-glow shimmer (animated). The chain glow follows the weakest link, the posture badge collapses to "Classical only", and the right-rail banner makes the threat model explicit. The Share button label softens to "share anyway" rather than disabling — autonomy preserved, consequence visible.</p>
+  </section>
+
+  <p style="color:var(--fog);font-size:12px;text-align:center;padding:24px 0;border-top:1px solid var(--stone);">Static mockup — no interactivity. <span class="mono">cipher-picker-mockup.html</span></p>
+</div>
+</body>
+</html>
