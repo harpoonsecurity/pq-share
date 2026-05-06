@@ -25,11 +25,15 @@ _PENDING_COLUMNS: list[tuple[str, str, str]] = [
 
 
 async def _apply_column_additions(conn) -> None:
+    # SQLAlchemy can't bind DDL identifiers (table/column names), and SQLite
+    # has no SQLAlchemy-core helper for ADD COLUMN. The values come from the
+    # hardcoded _PENDING_COLUMNS list above — not user input — so the
+    # injection rule doesn't apply.
     for table, column, ddl in _PENDING_COLUMNS:
-        rows = await conn.execute(text(f"PRAGMA table_info({table})"))
+        rows = await conn.execute(text(f"PRAGMA table_info({table})"))  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
         existing = {row[1] for row in rows.fetchall()}
         if column not in existing:
-            await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+            await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
 
 
 # (table, old_column, new_column) — applied if old exists and new does not.
@@ -40,11 +44,12 @@ _PENDING_RENAMES: list[tuple[str, str, str]] = [
 
 
 async def _apply_column_renames(conn) -> None:
+    # Same justification as _apply_column_additions: values are hardcoded.
     for table, old, new in _PENDING_RENAMES:
-        rows = await conn.execute(text(f"PRAGMA table_info({table})"))
+        rows = await conn.execute(text(f"PRAGMA table_info({table})"))  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
         cols = {row[1] for row in rows.fetchall()}
         if old in cols and new not in cols:
-            await conn.execute(text(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}"))
+            await conn.execute(text(f"ALTER TABLE {table} RENAME COLUMN {old} TO {new}"))  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
 
 
 async def init_db() -> None:
